@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automated-documentation-sync"
+version = "0.1.0"
+description = "Converts Jira-style user stories into structured requirements and synced SDLC documentation artifacts."
+requires-python = ">=3.10"
+readme = "README.md"
+
+[project.optional-dependencies]
+url-ingestion = ["requests>=2.31"]
+
+[project.scripts]
+docsync = "documentation_sync.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
