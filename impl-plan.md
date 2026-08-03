@@ -1,16 +1,36 @@
 # Implementation Plan: EPMCDMETST-55568
 
 ## Steps
-1. Implement and test FR-1: parse Jira-style story input (JSON, then Markdown) into a `JiraStory` model.
-2. Implement and test FR-2: derive a `RequirementSet` from the story and render requirements.md with US/FR/NFR IDs and a traceability table.
-3. Implement and test FR-3: render architecture.md, design-review.md, impl-plan.md, and PR.md from the approved requirement set.
-4. Implement and test FR-4: validate stories and requirement sets, returning clear errors (missing fields, invalid input, not found) instead of partial docs.
-5. Wire the CLI (`docsync`) to orchestrate parse -> validate -> generate -> write with proper exit codes for CI use.
-6. Add pytest coverage for happy path, missing fields, invalid input, and not-found scenarios across parser, validator, generator, and the integrated CLI flow.
-7. Capture verification evidence in test-evidence.md and evidence/pr-automation-evidence.md.
+1. Build robust story parsing for JSON and Markdown inputs, including acceptance criteria extraction. (FR-1) - Effort: M
+2. Enforce required field validation and clear failure paths that prevent partial generation. (FR-4) - Effort: S
+3. Generate requirements.md with stable ID sequencing (`US-1`, `FR-1..n`, `NFR-1..n`). (FR-2, NFR-1) - Effort: M
+4. Generate downstream artifacts from approved requirements (`architecture.md`, `design-review.md`, `impl-plan.md`, `PR.md`). (FR-3, NFR-1) - Effort: M
+5. Add verification checks for document structure, traceability, and story-to-ID parity. (FR-2, FR-4, NFR-1) - Effort: M
+6. Add and maintain tests for parser, validator, generator, integration flow, and verification tooling. (FR-1, FR-2, FR-3, FR-4) - Effort: L
+
+## Dependencies
+1. Step 1 must complete before Steps 2 and 3.
+2. Step 2 must complete before artifact generation in Step 4.
+3. Step 3 must complete before Step 4 to ensure stable requirement IDs.
+4. Step 4 should be in place before final verification evidence in Step 5 and Step 6.
+5. Step 6 depends on all prior steps for complete coverage and integration confidence.
 
 ## Test Strategy
-Pytest coverage for happy path, missing fields, invalid input, and not-found scenarios, run via `pytest` with `pythonpath = ["src"]` configured in pyproject.toml. CI executes the same suite via `.github/workflows/tests.yml`.
+Use pytest coverage for:
+- happy path generation from valid story inputs
+- Markdown/JSON parsing variants
+- validation failures (missing fields, malformed input, missing story)
+- downstream artifact generation and traceability checks
+- verifier behavior for structure and story parity checks
 
-## Rollout
-No external dependencies or deployment required for v1; this is a local CLI tool invoked as `python -m documentation_sync.cli samples/jira_story.json -o .` or via the `docsync` console script once installed.
+## Definition of Done
+1. All FR requirements (FR-1..FR-4) and NFR-1 are implemented and traceable.
+2. Tests pass locally and coverage is at or above 80% for the documentation_sync package.
+3. Verification command passes for artifact structure and story parity checks.
+4. Required SDLC artifacts are updated and committed in pipeline order.
+
+## Notes
+Task order is optimized to lock correctness and traceability before broadening generation and verification scope.
+
+## Outcome
+Implementation plan approved for execution and evidence collection.
