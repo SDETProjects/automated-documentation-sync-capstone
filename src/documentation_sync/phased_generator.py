@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from .generator import (
     build_requirement_set,
@@ -51,6 +51,7 @@ class PhasedRunReport:
 
     req_set: RequirementSet
     results: List[PhaseResult] = field(default_factory=list)
+    clarifications: Dict[str, str] = field(default_factory=dict)
 
 
 def _confirm(prompt: str, input_func: Callable[[str], str] = input) -> bool:
@@ -84,10 +85,13 @@ def run_phased_generation(
     else:
         print("\n=== Phase 1: Requirements ===")
         answers = wait_for_user_input(questions, input_func=input_func)
-    incorporate_feedback(story, answers)  # currently informational; see EnrichedStory
+    enriched = incorporate_feedback(story, answers)
+    report.clarifications = enriched.clarifications
 
     req_path = out / "requirements.md"
-    req_path.write_text(generate_requirements_md(report.req_set), encoding="utf-8")
+    req_path.write_text(
+        generate_requirements_md(report.req_set, enriched.clarifications), encoding="utf-8"
+    )
     report.results.append(PhaseResult("requirements", req_path))
 
     if not non_interactive and not _confirm(

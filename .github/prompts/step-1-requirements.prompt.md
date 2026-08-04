@@ -1,3 +1,9 @@
+---
+mode: agent
+description: Elicit and document requirements from a user story with traceability IDs
+tools: ["editFiles", "runCommands"]
+---
+
 # Prompt: Generate requirements.md
 
 Given a Jira-style story (samples/jira_story.json or Markdown), produce requirements.md with:

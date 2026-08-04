@@ -1,3 +1,9 @@
+---
+mode: agent
+description: Generate comprehensive PR description with full traceability and verification evidence
+tools: ["editFiles", "runCommands"]
+---
+
 # Prompt: Generate PR.md
 
 Using all approved artifacts (requirements.md, architecture.md, design-review.md, impl-plan.md, code-review.md, test-evidence.md), produce PR.md following .github/pull_request_template.md structure:

@@ -153,28 +153,36 @@ class ClaudeLLMAdapter(LLMAdapter):
 
 
 class CopilotLLMAdapter(LLMAdapter):
-    """GitHub Copilot adapter — architecturally wired but stubbed as
-    unavailable (Copilot credits exhausted in this environment). Kept so
-    the adapter pattern and --llm copilot flag are demonstrable to reviewers
-    while being honest about the current limitation.
+    """GitHub Copilot adapter — architecturally wired as an extension point.
+
+    GitHub Copilot operates as a VS Code extension and does not expose a
+    programmatic REST API callable from Python. The interactive clarification
+    workflow is available via Copilot Chat in VS Code using the prompt files
+    in .github/prompts/. This adapter preserves the --llm copilot flag in
+    the CLI so the adapter pattern is demonstrable; at runtime it falls back
+    to the offline heuristic question generator via LLMManager.
     """
 
     def is_available(self) -> bool:
         return False
 
     def name(self) -> str:
-        return "GitHub Copilot (unavailable)"
+        return "GitHub Copilot (VS Code Chat only - CLI unavailable, see .github/prompts/)"
 
     def generate_clarifying_questions(self, story: JiraStory) -> List[str]:
-        raise RuntimeError(
-            "GitHub Copilot adapter is not available in this environment. "
-            "Run with --llm claude instead."
-        )
+        raise RuntimeError(self._unavailable_msg())
 
     def as_llm_call(self):
-        raise RuntimeError(
-            "GitHub Copilot adapter is not available in this environment. "
-            "Run with --llm claude instead."
+        raise RuntimeError(self._unavailable_msg())
+
+    def _unavailable_msg(self) -> str:
+        return (
+            "GitHub Copilot does not expose a CLI-callable API.\n"
+            "  To use Copilot for requirements clarification:\n"
+            "    1. Open this project in VS Code with the Copilot extension active.\n"
+            "    2. Open Copilot Chat and run: .github/prompts/01-requirements.prompt.md\n"
+            "    3. Copilot will read .github/copilot-instructions.md automatically.\n"
+            "  For the CLI phased flow, run with --llm claude instead."
         )
 
 

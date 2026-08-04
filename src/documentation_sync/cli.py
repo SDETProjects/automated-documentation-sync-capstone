@@ -16,6 +16,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="docsync",
         description="Convert a Jira/Confluence story into synced SDLC documentation artifacts.",
+        epilog=(
+            "JIRA INTEGRATION:\n"
+            "  To fetch stories directly from Jira URLs, provide an API token via:\n"
+            "    --jira-token <your-token>\n"
+            "    JIRA_API_TOKEN environment variable\n"
+            "    JIRA_TOKEN environment variable\n"
+            "  Example: docsync 'https://jira.company.com/browse/PROJ-123' "
+            "--jira-token abc123xyz\n"
+            "  Or: export JIRA_API_TOKEN=abc123xyz && docsync "
+            "'https://jira.company.com/browse/PROJ-123'\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "story_input",
@@ -33,10 +45,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--jira-token",
         default=None,
+        nargs="?",
+        const=None,
         help=(
             "Jira/Confluence API token for URL ingestion. If omitted, falls "
-            "back to the JIRA_API_TOKEN environment variable, then to asking "
-            "you to paste the story manually if the URL cannot be fetched."
+            "back to the JIRA_API_TOKEN or JIRA_TOKEN environment variable."
         ),
     )
     parser.add_argument(
@@ -70,23 +83,31 @@ def _load_story_with_fallback(story_input: str, jira_token: str | None):
     """Load a story from file/URL/text; on integration failure, prompt for paste."""
     import os
 
-    auth_config = {"jira_token": jira_token or os.environ.get("JIRA_API_TOKEN")}
+    auth_config = {"jira_token": jira_token or os.environ.get("JIRA_API_TOKEN") or os.environ.get("JIRA_TOKEN")}
     try:
         return load_story_from_any_source(story_input, auth_config=auth_config)
     except IntegrationUnavailableError as exc:
         print(f"WARNING: {exc}", file=sys.stderr)
         print(
-            "Jira/Confluence integration is not available. Please paste the "
-            "full story text below, then press Enter on an empty line to finish:",
+            "\nTo use Jira integration, set your API token:\n"
+            "  export JIRA_API_TOKEN='your-token'  # or JIRA_TOKEN\n"
+            "  docsync <url> --phased --jira-token 'your-token'\n"
+            "\nOtherwise, paste the story text below (press Enter on empty line to finish):",
             file=sys.stderr,
         )
         lines = []
         while True:
-            line = input()
+            try:
+                line = input()
+            except EOFError:
+                break
             if not line.strip():
                 break
             lines.append(line)
         pasted = "\n".join(lines)
+        if not pasted.strip():
+            print("ERROR: No story text was provided.", file=sys.stderr)
+            raise SystemExit(1)
         return load_story_from_any_source(pasted)
 
 
@@ -148,6 +169,12 @@ def run(
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows consoles default to cp1252, which cannot encode characters that
+    # routinely appear in Jira content (e.g. "50 → 0.5") and would crash on print.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     args = build_arg_parser().parse_args(argv)
     return run(
         args.story_input,

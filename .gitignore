@@ -42,3 +42,7 @@ Thumbs.db
 
 # Demo output dirs (generated, not source)
 demo_output*/
+output_mcp/
+
+# Superseded demo runs, moved aside rather than deleted
+.archive/

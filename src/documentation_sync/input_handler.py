@@ -25,13 +25,15 @@ def detect_input_type(input_str: str) -> str:
     """Classify a CLI input string as "file", "url", or "text".
 
     - "url": starts with http:// or https://
-    - "file": resolves to an existing path on disk
+    - "file": path has a known story file extension (.json/.md/.markdown),
+              OR the path exists on disk (handles extension-less paths)
     - "text": anything else (raw pasted story content)
     """
     candidate = input_str.strip()
     if URL_PATTERN.match(candidate):
         return "url"
-    if Path(candidate).exists():
+    p = Path(candidate)
+    if p.suffix.lower() in (".json", ".md", ".markdown") or p.exists():
         return "file"
     return "text"
 
@@ -49,16 +51,11 @@ def _looks_like_confluence(url: str) -> bool:
 def _to_jira_rest_url(url: str) -> str:
     """Convert a Jira browse URL to its REST API equivalent.
 
-    /browse/PROJ-123  →  /rest/api/2/issue/PROJ-123
-    Already-REST URLs are returned unchanged.
+    Delegates to jira_connector.to_rest_url so the conversion lives in one place.
     """
-    parsed = urlparse(url)
-    browse_match = re.match(r"^/browse/([^/?#]+)", parsed.path)
-    if browse_match:
-        issue_key = browse_match.group(1)
-        rest_path = f"/rest/api/2/issue/{issue_key}"
-        return parsed._replace(path=rest_path, query="", fragment="").geturl()
-    return url
+    from .jira_connector import to_rest_url
+
+    return to_rest_url(url)
 
 
 def fetch_from_url(url: str, auth_token: Optional[str] = None) -> Dict[str, Any]:
@@ -72,10 +69,19 @@ def fetch_from_url(url: str, auth_token: Optional[str] = None) -> Dict[str, Any]
     network/auth failure, unsupported host), raises IntegrationUnavailableError
     so the caller can fall back to asking the user to paste the story manually.
     """
-    if not auth_token:
+    import os
+    from .jira_connector import fetch_issue_raw, JiraConnectorError
+
+    # Try provided token, then environment variables
+    token = auth_token or os.environ.get("JIRA_API_TOKEN") or os.environ.get("JIRA_TOKEN")
+
+    if not token:
         raise IntegrationUnavailableError(
-            "No Jira/Confluence auth token configured (--jira-token or "
-            "JIRA_API_TOKEN env var). Please paste the story text manually."
+            "No Jira/Confluence auth token configured. Set via:\n"
+            "  --jira-token <token>\n"
+            "  JIRA_API_TOKEN environment variable\n"
+            "  JIRA_TOKEN environment variable\n"
+            "Or paste the story text manually."
         )
 
     try:
@@ -92,26 +98,13 @@ def fetch_from_url(url: str, auth_token: Optional[str] = None) -> Dict[str, Any]
             "Please paste the story text manually."
         )
 
-    api_url = _to_jira_rest_url(url)
-    headers = {
-        "Authorization": f"Bearer {auth_token}",
-        "Accept": "application/json",
-    }
-
     try:
-        response = requests.get(api_url, headers=headers, timeout=10)
-        response.raise_for_status()
+        return fetch_issue_raw(url, api_token=token)
+    except JiraConnectorError as exc:
+        raise IntegrationUnavailableError(str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 - any network/auth failure triggers fallback
         raise IntegrationUnavailableError(
-            f"Could not fetch story from '{api_url}': {exc}. "
-            "Please paste the story text manually."
-        ) from exc
-
-    try:
-        return response.json()
-    except ValueError as exc:
-        raise IntegrationUnavailableError(
-            f"Response from '{api_url}' was not valid JSON. "
+            f"Could not fetch story from '{url}': {exc}. "
             "Please paste the story text manually."
         ) from exc
 

@@ -30,9 +30,9 @@ def test_run_phased_generation_non_interactive_writes_all_artifacts(tmp_path):
 
 
 def test_run_phased_generation_stops_when_user_rejects_a_gate(tmp_path):
-    # First input_func call answers the single clarifying question, the
-    # second call (the y/n gate after Phase 1) rejects continuation.
-    responses = iter(["An answer.", "n"])
+    # input_func answers all heuristic clarifying questions (currently 3),
+    # then "n" at the y/n gate after Phase 1 to stop continuation.
+    responses = iter(["An answer.", "An answer.", "An answer.", "n"])
 
     report = run_phased_generation(
         _story(),
@@ -63,3 +63,20 @@ def test_run_phased_generation_uses_provided_llm_call(tmp_path):
 
     assert calls  # the LLM callable was actually invoked
     assert report.results[0].phase == "requirements"
+
+
+def test_user_answers_appear_in_requirements_md(tmp_path):
+    responses = iter(["Cap it at 500ms.", "Reject negatives.", "Tech lead signs off."])
+
+    report = run_phased_generation(
+        _story(),
+        output_dir=str(tmp_path),
+        input_func=lambda prompt: next(responses) if prompt == "> " else "y",
+        non_interactive=False,
+    )
+
+    content = (tmp_path / "requirements.md").read_text(encoding="utf-8")
+    assert "Cap it at 500ms." in content
+    assert "Reject negatives." in content
+    assert "Tech lead signs off." in content
+    assert report.clarifications

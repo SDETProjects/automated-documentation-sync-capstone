@@ -1,3 +1,9 @@
+---
+mode: agent
+description: Conduct structured design review identifying risks, gaps, and alternatives
+tools: ["editFiles", "runCommands"]
+---
+
 # Prompt: Generate design-review.md
 
 Using requirements.md and architecture.md, produce design-review.md with:

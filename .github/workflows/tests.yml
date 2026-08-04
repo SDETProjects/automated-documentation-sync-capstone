@@ -19,6 +19,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: pip install -e .
+        run: pip install -e ".[test]"
       - name: Run tests
-        run: pytest -v
+        run: pytest -v --cov=src/documentation_sync --cov-report=term-missing --cov-fail-under=80
+
+      - name: Verify generated document quality
+        run: docsync-verify . --story user-story.md
