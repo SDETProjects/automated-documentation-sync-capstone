@@ -11,6 +11,8 @@ from .models import JiraStory
 from .parser import StoryParseError, load_story
 
 URL_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
+ISSUE_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
+REPO_CONFIG_FILENAME = "docsync.config.json"
 
 
 class IntegrationUnavailableError(Exception):
@@ -25,13 +27,15 @@ def detect_input_type(input_str: str) -> str:
     """Classify a CLI input string as "file", "url", or "text".
 
     - "url": starts with http:// or https://
-    - "file": resolves to an existing path on disk
+    - "file": path has a known story file extension (.json/.md/.markdown),
+              OR the path exists on disk (handles extension-less paths)
     - "text": anything else (raw pasted story content)
     """
     candidate = input_str.strip()
     if URL_PATTERN.match(candidate):
         return "url"
-    if Path(candidate).exists():
+    p = Path(candidate)
+    if p.suffix.lower() in (".json", ".md", ".markdown") or p.exists():
         return "file"
     return "text"
 
@@ -49,16 +53,83 @@ def _looks_like_confluence(url: str) -> bool:
 def _to_jira_rest_url(url: str) -> str:
     """Convert a Jira browse URL to its REST API equivalent.
 
-    /browse/PROJ-123  →  /rest/api/2/issue/PROJ-123
-    Already-REST URLs are returned unchanged.
+    Delegates to jira_connector.to_rest_url so the conversion lives in one place.
     """
-    parsed = urlparse(url)
-    browse_match = re.match(r"^/browse/([^/?#]+)", parsed.path)
-    if browse_match:
-        issue_key = browse_match.group(1)
-        rest_path = f"/rest/api/2/issue/{issue_key}"
-        return parsed._replace(path=rest_path, query="", fragment="").geturl()
-    return url
+    from .jira_connector import to_rest_url
+
+    return to_rest_url(url)
+
+
+def _looks_like_issue_key(value: str) -> bool:
+    """Return True when value is a bare Jira issue key (for example PROJ-123)."""
+    return bool(ISSUE_KEY_PATTERN.match(value.strip()))
+
+
+def _read_repo_jira_base_url() -> Optional[str]:
+    """Read Jira base URL from a repository config file if present.
+
+    The expected file is `docsync.config.json` and can define either:
+      - {"jira_base_url": "https://jira.company.com"}
+      - {"jira": {"base_url": "https://jira.company.com"}}
+    """
+    start = Path.cwd().resolve()
+    for directory in [start, *start.parents]:
+        config_path = directory / REPO_CONFIG_FILENAME
+        if not config_path.exists():
+            continue
+
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise IntegrationUnavailableError(
+                f"Invalid JSON in {config_path}: {exc}"
+            ) from exc
+
+        if not isinstance(data, dict):
+            raise IntegrationUnavailableError(
+                f"Invalid config format in {config_path}: expected a JSON object"
+            )
+
+        root_value = data.get("jira_base_url")
+        if isinstance(root_value, str) and root_value.strip():
+            return root_value.strip()
+
+        jira_section = data.get("jira")
+        if isinstance(jira_section, dict):
+            nested_value = jira_section.get("base_url")
+            if isinstance(nested_value, str) and nested_value.strip():
+                return nested_value.strip()
+
+        return None
+
+    return None
+
+
+def _issue_key_to_url(issue_key: str, jira_base_url: Optional[str]) -> str:
+    """Resolve a Jira issue key into a browse URL using jira_base_url.
+
+    jira_base_url can be provided by caller configuration or environment.
+    """
+    import os
+
+    base = (
+        jira_base_url
+        or os.environ.get("JIRA_BASE_URL")
+        or _read_repo_jira_base_url()
+        or ""
+    ).strip()
+    if not base:
+        raise IntegrationUnavailableError(
+            "Received a Jira issue key but no Jira base URL is configured. Set JIRA_BASE_URL, "
+            "or create docsync.config.json with jira_base_url, or pass a full Jira URL."
+        )
+
+    base = base.rstrip("/")
+    if not URL_PATTERN.match(base):
+        raise IntegrationUnavailableError(
+            f"Configured JIRA_BASE_URL '{base}' is invalid. Use an absolute URL like https://jira.company.com"
+        )
+    return f"{base}/browse/{issue_key.strip()}"
 
 
 def fetch_from_url(url: str, auth_token: Optional[str] = None) -> Dict[str, Any]:
@@ -72,10 +143,19 @@ def fetch_from_url(url: str, auth_token: Optional[str] = None) -> Dict[str, Any]
     network/auth failure, unsupported host), raises IntegrationUnavailableError
     so the caller can fall back to asking the user to paste the story manually.
     """
-    if not auth_token:
+    import os
+    from .jira_connector import fetch_issue_raw, JiraConnectorError
+
+    # Try provided token, then environment variables
+    token = auth_token or os.environ.get("JIRA_API_TOKEN") or os.environ.get("JIRA_TOKEN")
+
+    if not token:
         raise IntegrationUnavailableError(
-            "No Jira/Confluence auth token configured (--jira-token or "
-            "JIRA_API_TOKEN env var). Please paste the story text manually."
+            "No Jira/Confluence auth token configured. Set via:\n"
+            "  --jira-token <token>\n"
+            "  JIRA_API_TOKEN environment variable\n"
+            "  JIRA_TOKEN environment variable\n"
+            "Or paste the story text manually."
         )
 
     try:
@@ -92,26 +172,13 @@ def fetch_from_url(url: str, auth_token: Optional[str] = None) -> Dict[str, Any]
             "Please paste the story text manually."
         )
 
-    api_url = _to_jira_rest_url(url)
-    headers = {
-        "Authorization": f"Bearer {auth_token}",
-        "Accept": "application/json",
-    }
-
     try:
-        response = requests.get(api_url, headers=headers, timeout=10)
-        response.raise_for_status()
+        return fetch_issue_raw(url, api_token=token)
+    except JiraConnectorError as exc:
+        raise IntegrationUnavailableError(str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 - any network/auth failure triggers fallback
         raise IntegrationUnavailableError(
-            f"Could not fetch story from '{api_url}': {exc}. "
-            "Please paste the story text manually."
-        ) from exc
-
-    try:
-        return response.json()
-    except ValueError as exc:
-        raise IntegrationUnavailableError(
-            f"Response from '{api_url}' was not valid JSON. "
+            f"Could not fetch story from '{url}': {exc}. "
             "Please paste the story text manually."
         ) from exc
 
@@ -365,8 +432,19 @@ def load_story_from_any_source(
         raw = fetch_from_url(input_str, auth_token=auth_config.get("jira_token"))
         return _story_from_raw_json(raw)
 
-    # "text": try JSON first, then fall back to the Markdown convention.
     stripped = input_str.strip()
+
+    # Bare Jira issue key support (for example EPMCDMETST-55568): resolve to URL,
+    # then reuse the URL fetch + parse flow.
+    if _looks_like_issue_key(stripped):
+        issue_url = _issue_key_to_url(
+            stripped,
+            jira_base_url=auth_config.get("jira_base_url"),
+        )
+        raw = fetch_from_url(issue_url, auth_token=auth_config.get("jira_token"))
+        return _story_from_raw_json(raw)
+
+    # "text": try JSON first, then fall back to the Markdown convention.
     if stripped.startswith("{"):
         try:
             return _story_from_raw_json(json.loads(stripped))

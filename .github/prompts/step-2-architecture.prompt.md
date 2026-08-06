@@ -1,3 +1,9 @@
+---
+mode: agent
+description: Design high-level system architecture addressing all functional requirements
+tools: ["editFiles", "runCommands"]
+---
+
 # Prompt: Generate architecture.md
 
 Using the approved requirements.md, produce architecture.md with:

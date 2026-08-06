@@ -1,0 +1,33 @@
+name: doc-sync
+
+# Story-to-artifact sync evidence: regenerates SDLC artifacts from the source
+# story and fails if the committed artifacts have drifted from what the
+# pipeline produces. This is the CI counterpart to .githooks/pre-commit.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: pip install -e ".[test]"
+
+      - name: Verify committed artifacts and story parity
+        run: docsync-verify . --story user-story.md
+
+      - name: Verify the generator itself still produces valid artifacts
+        run: |
+          docsync user-story.md -o regenerated
+          docsync-verify regenerated --story user-story.md

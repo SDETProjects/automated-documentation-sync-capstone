@@ -1,3 +1,9 @@
+---
+mode: agent
+description: Perform structured peer code review on implementation against requirements
+tools: ["editFiles", "runCommands"]
+---
+
 # Prompt: Generate code-review.md
 
 After implementation, produce code-review.md with:

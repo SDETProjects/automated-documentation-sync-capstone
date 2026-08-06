@@ -2,9 +2,12 @@
 from documentation_sync.generator import (
     build_requirement_set,
     generate_architecture_md,
+    generate_changelog_md,
+    generate_code_review_md,
     generate_impl_plan_md,
     generate_pr_md,
     generate_requirements_md,
+    generate_verification_report_md,
     write_all_artifacts,
 )
 from documentation_sync.models import JiraStory
@@ -72,9 +75,32 @@ def test_write_all_artifacts_creates_files(tmp_path):
         "architecture.md",
         "design-review.md",
         "impl-plan.md",
+        "code-review.md",
+        "verification-report.md",
+        "CHANGELOG.md",
         "PR.md",
     }
     assert {p.name for p in written} == expected_names
     for path in written:
         assert path.exists()
         assert path.read_text(encoding="utf-8").strip() != ""
+
+
+def test_generate_verification_report_md_has_required_sections():
+    req_set = build_requirement_set(_story())
+    content = generate_verification_report_md(req_set)
+
+    assert "Test Execution Summary" in content
+    assert "Integration Verification" in content
+    assert "Traceability Verification" in content
+    assert "Artifact Quality Check" in content
+    assert "Outcome" in content
+
+
+def test_generate_changelog_md_has_required_sections():
+    req_set = build_requirement_set(_story())
+    content = generate_changelog_md(req_set)
+
+    assert "Overview" in content
+    assert "Changes" in content
+    assert "Known Limitations" in content

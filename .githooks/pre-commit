@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#
+# Enforces the Copilot operating model: SDLC artifacts must satisfy the
+# structure and traceability rules in .github/instructions/docs.instructions.md.
+#
+# Install (opt-in, per clone):
+#     git config core.hooksPath .githooks
+#
+set -euo pipefail
+
+ARTIFACTS="requirements.md architecture.md design-review.md impl-plan.md PR.md"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+touched=""
+for artifact in $ARTIFACTS; do
+    if grep -qx "$artifact" <<<"$staged"; then
+        touched="$touched $artifact"
+    fi
+done
+
+if [ -z "$touched" ]; then
+    exit 0
+fi
+
+echo "pre-commit: SDLC artifact(s) staged:$touched"
+echo "pre-commit: running document-quality verification..."
+
+if command -v docsync-verify >/dev/null 2>&1; then
+    verify="docsync-verify"
+else
+    verify="python -m documentation_sync.doc_validator"
+    export PYTHONPATH="src${PYTHONPATH:+:$PYTHONPATH}"
+fi
+
+if ! $verify . --story user-story.md; then
+    cat >&2 <<'EOF'
+
+pre-commit: BLOCKED — generated artifacts failed document-quality checks.
+
+Artifacts are generated, not hand-edited. To fix:
+  1. Update the source story, then regenerate:  docsync <story> -o .
+  2. Or drive the phase prompt in Copilot Chat: .github/prompts/
+  3. Re-verify:                                 docsync-verify .
+
+Override only with written justification:  git commit --no-verify
+EOF
+    exit 1
+fi
+
+echo "pre-commit: document quality OK."

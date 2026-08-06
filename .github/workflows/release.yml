@@ -1,0 +1,58 @@
+name: release
+
+# Merge-release evidence. Fires only on an annotated tag push; nothing here runs
+# on ordinary commits. Re-verifies every gate, then publishes a GitHub Release
+# using RELEASE-NOTES.md as the body.
+#
+# To cut a release (manual, deliberate):
+#     git tag -a v1.0.0 -m "Agentic SDLC Pipeline v1.0.0"
+#     git push origin v1.0.0
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: pip install -e ".[test]"
+
+      - name: Gate 1 - tests and coverage
+        run: pytest -v --cov=src/documentation_sync --cov-report=term-missing --cov-fail-under=80
+
+      - name: Gate 2 - document quality and story parity
+        run: docsync-verify . --story samples/jira_story.json
+
+      - name: Gate 3 - required SDLC artifacts present
+        run: |
+          set -euo pipefail
+          missing=0
+          for artifact in requirements.md architecture.md design-review.md \
+                          impl-plan.md code-review.md PR.md RELEASE-NOTES.md; do
+            if [ ! -f "$artifact" ]; then
+              echo "::error::missing required release artifact: $artifact"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "All SDLC artifacts present."
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE-NOTES.md
+          generate_release_notes: true

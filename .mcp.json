@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "docsync-jira": {
+      "command": "python",
+      "args": ["-m", "documentation_sync.jira_mcp_server"],
+      "env": {
+        "PYTHONPATH": "src",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

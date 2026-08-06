@@ -1,3 +1,9 @@
+---
+mode: agent
+description: Break architecture into prioritized, dependency-ordered implementation tasks
+tools: ["editFiles", "runCommands"]
+---
+
 # Prompt: Generate impl-plan.md
 
 Using the approved requirements.md and architecture.md, produce impl-plan.md with:

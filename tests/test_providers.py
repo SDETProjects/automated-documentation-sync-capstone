@@ -83,18 +83,9 @@ class TestClaudeLLMAdapterSDKPath:
         mock_client = MagicMock()
         mock_client.messages.create.return_value = mock_message
 
-        with patch("documentation_sync.providers.Anthropic", return_value=mock_client):
-            # Patch the import inside the method
-            import documentation_sync.providers as p
-            original = getattr(p, "Anthropic", None)
-            p.Anthropic = lambda: mock_client  # type: ignore[attr-defined]
-
-            try:
-                adapter = ClaudeLLMAdapter()
-                result = adapter.generate_clarifying_questions(_sample_story())
-            finally:
-                if original is not None:
-                    p.Anthropic = original  # type: ignore[attr-defined]
+        with patch.dict("sys.modules", {"anthropic": MagicMock(Anthropic=lambda: mock_client)}):
+            adapter = ClaudeLLMAdapter()
+            result = adapter.generate_clarifying_questions(_sample_story())
 
         assert isinstance(result, list)
         assert len(result) <= 3
