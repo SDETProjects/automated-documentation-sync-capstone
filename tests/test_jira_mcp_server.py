@@ -109,10 +109,31 @@ class TestGetArtifactStatus:
 # ---------------------------------------------------------------------------
 
 class TestFetchJiraStory:
-    def test_bare_key_returns_error(self):
+    def test_bare_key_without_base_url_returns_error(self, monkeypatch):
+        monkeypatch.delenv("JIRA_BASE_URL", raising=False)
         result = _tool_fetch_jira_story("PROJ-123")
         assert "error" in result
-        assert "full Jira URL" in result["error"]
+        assert "JIRA_BASE_URL" in result["error"]
+
+    def test_bare_key_with_base_url_fetches(self, monkeypatch):
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jiraeu.epam.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        mock_raw = {
+            "key": "PROJ-123",
+            "fields": {
+                "summary": "Key lookup story",
+                "description": "desc",
+                "acceptance_criteria": ["ac"],
+            },
+        }
+        with patch(
+            "documentation_sync.jira_connector.fetch_issue_raw",
+            return_value=mock_raw,
+        ):
+            result = _tool_fetch_jira_story("PROJ-123")
+
+        assert "error" not in result
+        assert result["key"] == "PROJ-123"
 
     def test_no_token_returns_error(self, monkeypatch):
         monkeypatch.delenv("JIRA_API_TOKEN", raising=False)

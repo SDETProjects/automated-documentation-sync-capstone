@@ -32,15 +32,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "story_input",
         help=(
-            "Path to a story file (.json/.md), a Jira/Confluence URL, or "
+            "Path to a story file (.json/.md), a Jira issue key (for example PROJ-123), "
+            "a Jira/Confluence URL, or "
             "raw pasted story text (wrap in quotes)."
         ),
     )
     parser.add_argument(
         "-o",
         "--output-dir",
-        default=".",
-        help="Directory to write generated artifacts into (default: current directory)",
+        default=None,
+        help=(
+            "Directory to write generated artifacts into. If omitted, defaults to "
+            "github-copilot-output, or claude-output when --llm claude is set."
+        ),
     )
     parser.add_argument(
         "--jira-token",
@@ -83,7 +87,10 @@ def _load_story_with_fallback(story_input: str, jira_token: str | None):
     """Load a story from file/URL/text; on integration failure, prompt for paste."""
     import os
 
-    auth_config = {"jira_token": jira_token or os.environ.get("JIRA_API_TOKEN") or os.environ.get("JIRA_TOKEN")}
+    auth_config = {
+        "jira_token": jira_token or os.environ.get("JIRA_API_TOKEN") or os.environ.get("JIRA_TOKEN"),
+        "jira_base_url": os.environ.get("JIRA_BASE_URL"),
+    }
     try:
         return load_story_from_any_source(story_input, auth_config=auth_config)
     except IntegrationUnavailableError as exc:
@@ -91,6 +98,9 @@ def _load_story_with_fallback(story_input: str, jira_token: str | None):
         print(
             "\nTo use Jira integration, set your API token:\n"
             "  export JIRA_API_TOKEN='your-token'  # or JIRA_TOKEN\n"
+            "Optionally set Jira base URL for issue-key input:\n"
+            "  export JIRA_BASE_URL='https://jira.company.com'\n"
+            "  # or create docsync.config.json with {\"jira_base_url\": \"https://jira.company.com\"}\n"
             "  docsync <url> --phased --jira-token 'your-token'\n"
             "\nOtherwise, paste the story text below (press Enter on empty line to finish):",
             file=sys.stderr,
@@ -111,15 +121,30 @@ def _load_story_with_fallback(story_input: str, jira_token: str | None):
         return load_story_from_any_source(pasted)
 
 
+def _resolve_output_dir(output_dir: str | None, llm: str | None) -> str:
+    """Resolve output directory when user does not pass --output-dir."""
+    if output_dir:
+        return output_dir
+    return "claude-output" if llm == "claude" else "github-copilot-output"
+
+
 def run(
     story_input: str,
-    output_dir: str = ".",
+    output_dir: str | None = None,
     jira_token: str | None = None,
     phased: bool = False,
     non_interactive: bool = False,
     llm: str | None = None,
 ) -> int:
+    if jira_token:
+        print(
+            "WARNING: Passing --jira-token on the CLI exposes it in shell history. "
+            "Use the JIRA_API_TOKEN environment variable instead.",
+            file=sys.stderr,
+        )
+
     try:
+        resolved_output_dir = _resolve_output_dir(output_dir, llm)
         story = _load_story_with_fallback(story_input, jira_token)
         ensure_valid_story(story)
 
@@ -140,13 +165,13 @@ def run(
 
             report = run_phased_generation(
                 story,
-                output_dir=output_dir,
+                output_dir=resolved_output_dir,
                 non_interactive=non_interactive,
                 llm_call=llm_call,
             )
             print(
                 f"Phased run complete: {len(report.results)} artifact(s) in "
-                f"{Path(output_dir).resolve()}:"
+                f"{Path(resolved_output_dir).resolve()}:"
             )
             for result in report.results:
                 print(f"  - [{result.phase}] {result.artifact_path.name}")
@@ -154,7 +179,7 @@ def run(
 
         req_set = build_requirement_set(story)
         ensure_valid_requirement_set(req_set)
-        written = write_all_artifacts(req_set, output_dir)
+        written = write_all_artifacts(req_set, resolved_output_dir)
     except StoryNotFoundError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -162,7 +187,7 @@ def run(
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Generated {len(written)} artifact(s) in {Path(output_dir).resolve()}:")
+    print(f"Generated {len(written)} artifact(s) in {Path(resolved_output_dir).resolve()}:")
     for path in written:
         print(f"  - {path.name}")
     return 0

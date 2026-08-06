@@ -88,11 +88,31 @@ def test_end_to_end_no_acceptance_criteria_fails_validation(tmp_path):
     assert exit_code == 1
 
 
+def test_run_with_explicit_jira_token_emits_warning(tmp_path, capsys):
+    story_path = _write_story(
+        tmp_path,
+        {
+            "key": "WARN-1",
+            "summary": "Token warning test",
+            "description": "Check that explicit jira-token triggers a warning.",
+            "acceptance_criteria": ["Given a token, warn the user"],
+        },
+    )
+    out = tmp_path / "out"
+
+    exit_code = run(str(story_path), str(out), jira_token="fake-token-abc")
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.err
+    assert "JIRA_API_TOKEN" in captured.err
+
+
 class TestArgParser:
     def test_defaults(self):
         args = build_arg_parser().parse_args(["story.json"])
         assert args.story_input == "story.json"
-        assert args.output_dir == "."
+        assert args.output_dir is None
         assert args.phased is False
         assert args.non_interactive is False
         assert args.llm is None
@@ -106,9 +126,83 @@ class TestArgParser:
         assert args.non_interactive is True
         assert args.llm == "claude"
 
+
+def test_run_defaults_to_github_copilot_output(tmp_path, monkeypatch):
+    story_path = _write_story(
+        tmp_path,
+        {
+            "key": "DEF-1",
+            "summary": "Default output dir",
+            "description": "As a user I want a stable default output path.",
+            "acceptance_criteria": ["Given no -o, artifacts go to default folder"],
+        },
+    )
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = run(str(story_path))
+
+    assert exit_code == 0
+    assert (tmp_path / "github-copilot-output" / "requirements.md").exists()
+
+
+def test_run_defaults_to_claude_output_when_llm_claude(tmp_path, monkeypatch):
+    story_path = _write_story(
+        tmp_path,
+        {
+            "key": "DEF-2",
+            "summary": "Claude default output dir",
+            "description": "As a user I want claude outputs separated.",
+            "acceptance_criteria": ["Given llm claude and no -o, artifacts go to claude-output"],
+        },
+    )
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = run(str(story_path), llm="claude")
+
+    assert exit_code == 0
+    assert (tmp_path / "claude-output" / "requirements.md").exists()
+
     def test_rejects_unknown_llm(self):
         with pytest.raises(SystemExit):
             build_arg_parser().parse_args(["story.json", "--llm", "gpt4"])
+
+
+def test_run_fallback_paste_when_integration_unavailable(tmp_path, monkeypatch):
+    """When IntegrationUnavailableError is raised, _load_story_with_fallback
+    prompts the user to paste the story; simulate pasting via monkeypatching input()."""
+    import documentation_sync.cli as cli_module
+    from documentation_sync.input_handler import IntegrationUnavailableError
+    from documentation_sync import input_handler as ih_module
+
+    out = tmp_path / "out"
+
+    pasted_lines = [
+        "# PASTE-1: Pasted story",
+        "## Description",
+        "As a user I want the fallback paste path to work.",
+        "## Acceptance Criteria",
+        "- Given a paste, when parsed, then it works",
+        "",
+    ]
+    line_iter = iter(pasted_lines)
+    call_count = {"n": 0}
+
+    real_load = ih_module.load_story_from_any_source
+
+    def fake_load(input_str, auth_config=None):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise IntegrationUnavailableError("no token")
+        return real_load(input_str, auth_config=auth_config)
+
+    monkeypatch.setattr("documentation_sync.cli.load_story_from_any_source", fake_load)
+    monkeypatch.setattr("builtins.input", lambda *_: next(line_iter, ""))
+
+    exit_code = cli_module.run(
+        "https://fake.jira.com/browse/PASTE-1",
+        str(out),
+    )
+    assert exit_code == 0
 
 
 class TestMain:

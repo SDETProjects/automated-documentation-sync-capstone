@@ -11,6 +11,8 @@ from .models import JiraStory
 from .parser import StoryParseError, load_story
 
 URL_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
+ISSUE_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
+REPO_CONFIG_FILENAME = "docsync.config.json"
 
 
 class IntegrationUnavailableError(Exception):
@@ -56,6 +58,78 @@ def _to_jira_rest_url(url: str) -> str:
     from .jira_connector import to_rest_url
 
     return to_rest_url(url)
+
+
+def _looks_like_issue_key(value: str) -> bool:
+    """Return True when value is a bare Jira issue key (for example PROJ-123)."""
+    return bool(ISSUE_KEY_PATTERN.match(value.strip()))
+
+
+def _read_repo_jira_base_url() -> Optional[str]:
+    """Read Jira base URL from a repository config file if present.
+
+    The expected file is `docsync.config.json` and can define either:
+      - {"jira_base_url": "https://jira.company.com"}
+      - {"jira": {"base_url": "https://jira.company.com"}}
+    """
+    start = Path.cwd().resolve()
+    for directory in [start, *start.parents]:
+        config_path = directory / REPO_CONFIG_FILENAME
+        if not config_path.exists():
+            continue
+
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise IntegrationUnavailableError(
+                f"Invalid JSON in {config_path}: {exc}"
+            ) from exc
+
+        if not isinstance(data, dict):
+            raise IntegrationUnavailableError(
+                f"Invalid config format in {config_path}: expected a JSON object"
+            )
+
+        root_value = data.get("jira_base_url")
+        if isinstance(root_value, str) and root_value.strip():
+            return root_value.strip()
+
+        jira_section = data.get("jira")
+        if isinstance(jira_section, dict):
+            nested_value = jira_section.get("base_url")
+            if isinstance(nested_value, str) and nested_value.strip():
+                return nested_value.strip()
+
+        return None
+
+    return None
+
+
+def _issue_key_to_url(issue_key: str, jira_base_url: Optional[str]) -> str:
+    """Resolve a Jira issue key into a browse URL using jira_base_url.
+
+    jira_base_url can be provided by caller configuration or environment.
+    """
+    import os
+
+    base = (
+        jira_base_url
+        or os.environ.get("JIRA_BASE_URL")
+        or _read_repo_jira_base_url()
+        or ""
+    ).strip()
+    if not base:
+        raise IntegrationUnavailableError(
+            "Received a Jira issue key but no Jira base URL is configured. Set JIRA_BASE_URL, "
+            "or create docsync.config.json with jira_base_url, or pass a full Jira URL."
+        )
+
+    base = base.rstrip("/")
+    if not URL_PATTERN.match(base):
+        raise IntegrationUnavailableError(
+            f"Configured JIRA_BASE_URL '{base}' is invalid. Use an absolute URL like https://jira.company.com"
+        )
+    return f"{base}/browse/{issue_key.strip()}"
 
 
 def fetch_from_url(url: str, auth_token: Optional[str] = None) -> Dict[str, Any]:
@@ -358,8 +432,19 @@ def load_story_from_any_source(
         raw = fetch_from_url(input_str, auth_token=auth_config.get("jira_token"))
         return _story_from_raw_json(raw)
 
-    # "text": try JSON first, then fall back to the Markdown convention.
     stripped = input_str.strip()
+
+    # Bare Jira issue key support (for example EPMCDMETST-55568): resolve to URL,
+    # then reuse the URL fetch + parse flow.
+    if _looks_like_issue_key(stripped):
+        issue_url = _issue_key_to_url(
+            stripped,
+            jira_base_url=auth_config.get("jira_base_url"),
+        )
+        raw = fetch_from_url(issue_url, auth_token=auth_config.get("jira_token"))
+        return _story_from_raw_json(raw)
+
+    # "text": try JSON first, then fall back to the Markdown convention.
     if stripped.startswith("{"):
         try:
             return _story_from_raw_json(json.loads(stripped))

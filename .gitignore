@@ -39,10 +39,15 @@ Thumbs.db
 .env
 .env.*
 *.token
+docsync.config.json
 
 # Demo output dirs (generated, not source)
 demo_output*/
 output_mcp/
+github-copilot-output/
+claude-output/
+claude-*.md
+CLAUDE-ARCHITECTURE-SUMMARY.md
 
 # Superseded demo runs, moved aside rather than deleted
 .archive/

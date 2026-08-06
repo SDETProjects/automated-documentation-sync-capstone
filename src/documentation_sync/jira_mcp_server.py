@@ -22,15 +22,22 @@ from typing import Any, Dict
 def _tool_fetch_jira_story(url: str, jira_token: str | None = None) -> Dict[str, Any]:
     """Fetch and parse a Jira issue URL into structured story fields."""
     from .jira_connector import fetch_issue_raw, JiraConnectorError
+    from .input_handler import _issue_key_to_url, _looks_like_issue_key
     from .input_handler import _story_from_raw_json
 
     if not url.startswith("http"):
-        return {
-            "error": (
-                f"Provide a full Jira URL (e.g. https://jira.host/browse/{url}), "
-                "not just the issue key."
-            )
-        }
+        if _looks_like_issue_key(url):
+            try:
+                url = _issue_key_to_url(url, jira_base_url=os.environ.get("JIRA_BASE_URL"))
+            except Exception as exc:  # noqa: BLE001
+                return {"error": str(exc)}
+        else:
+            return {
+                "error": (
+                    f"Provide a Jira issue key (e.g. PROJ-123) or full Jira URL "
+                    f"(e.g. https://jira.host/browse/{url})."
+                )
+            }
 
     token = jira_token or os.environ.get("JIRA_API_TOKEN") or os.environ.get("JIRA_TOKEN")
     if not token:
