@@ -42,12 +42,10 @@ class ClaudeLLMAdapter(LLMAdapter):
     MODEL = "claude-haiku-4-5-20251001"
 
     def is_available(self) -> bool:
+        # Treat API key presence as availability for manager selection.
+        # The SDK import itself is resolved lazily at call time.
         if os.getenv("ANTHROPIC_API_KEY"):
-            try:
-                import anthropic  # noqa: F401
-                return True
-            except ImportError:
-                pass  # API key set but package missing; fall through to CLI check
+            return True
         try:
             subprocess.run(
                 ["claude", "--version"],
