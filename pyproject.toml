@@ -24,3 +24,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--cov=src/documentation_sync --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src/documentation_sync"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

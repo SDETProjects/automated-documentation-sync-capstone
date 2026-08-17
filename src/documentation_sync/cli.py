@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from .config import Settings
 from .generator import build_requirement_set, write_all_artifacts
 from .input_handler import IntegrationUnavailableError, load_story_from_any_source
 from .parser import StoryNotFoundError, StoryParseError
@@ -80,6 +81,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "question generator."
         ),
     )
+    parser.add_argument(
+        "--resume-from-phase",
+        default=None,
+        help=(
+            "Resume a phased run from a specific phase (e.g., 'architecture'). "
+            "Loads checkpoint from output-dir and skips completed phases."
+        ),
+    )
     return parser
 
 
@@ -87,9 +96,15 @@ def _load_story_with_fallback(story_input: str, jira_token: str | None):
     """Load a story from file/URL/text; on integration failure, prompt for paste."""
     import os
 
+    try:
+        settings = Settings.load()
+        jira_base_url = settings.jira_base_url
+    except Exception:
+        jira_base_url = os.environ.get("JIRA_BASE_URL")
+
     auth_config = {
         "jira_token": jira_token or os.environ.get("JIRA_API_TOKEN") or os.environ.get("JIRA_TOKEN"),
-        "jira_base_url": os.environ.get("JIRA_BASE_URL"),
+        "jira_base_url": jira_base_url,
     }
     try:
         return load_story_from_any_source(story_input, auth_config=auth_config)
@@ -135,6 +150,7 @@ def run(
     phased: bool = False,
     non_interactive: bool = False,
     llm: str | None = None,
+    resume_from_phase: str | None = None,
 ) -> int:
     if jira_token:
         print(
@@ -168,6 +184,7 @@ def run(
                 output_dir=resolved_output_dir,
                 non_interactive=non_interactive,
                 llm_call=llm_call,
+                resume_from_phase=resume_from_phase,
             )
             print(
                 f"Phased run complete: {len(report.results)} artifact(s) in "
@@ -208,6 +225,7 @@ def main(argv: list[str] | None = None) -> int:
         phased=args.phased,
         non_interactive=args.non_interactive,
         llm=args.llm,
+        resume_from_phase=args.resume_from_phase,
     )
 
 

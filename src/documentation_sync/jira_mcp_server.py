@@ -25,10 +25,18 @@ def _tool_fetch_jira_story(url: str, jira_token: str | None = None) -> Dict[str,
     from .input_handler import _issue_key_to_url, _looks_like_issue_key
     from .input_handler import _story_from_raw_json
 
+    # Use config Settings for JIRA_BASE_URL (file -> env -> default)
+    try:
+        from .config import Settings
+        settings = Settings.load()
+        jira_base_url = settings.jira_base_url
+    except Exception:
+        jira_base_url = os.environ.get("JIRA_BASE_URL")
+
     if not url.startswith("http"):
         if _looks_like_issue_key(url):
             try:
-                url = _issue_key_to_url(url, jira_base_url=os.environ.get("JIRA_BASE_URL"))
+                url = _issue_key_to_url(url, jira_base_url=jira_base_url)
             except Exception as exc:  # noqa: BLE001
                 return {"error": str(exc)}
         else:

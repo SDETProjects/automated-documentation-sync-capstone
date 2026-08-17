@@ -14,7 +14,16 @@ You are the Pipeline Orchestrator for the Automated Documentation Sync SDLC. You
 
 ## Behavior
 
-- Ask for story input if not provided (path to `user-story.md` or text paste)
+**Story Resolution (before Step 1):**
+1. **Auto-fetch from Jira** — If `JIRA_API_TOKEN` + `JIRA_BASE_URL` (or `docsync.config.json`) configured, run via `runCommands`:
+   ```bash
+   docsync "${JIRA_BASE_URL}/browse/${ISSUE_KEY}" --jira-token "$JIRA_API_TOKEN" -o . --non-interactive
+   ```
+   This writes fresh `user-story.md` at repo root.
+2. **Local file** — If auto-fetch skipped/failed, check for existing `user-story.md` at repo root.
+3. **User paste** — If neither above, prompt user: *"No live Jira fetch or local story found. Please paste the story text (key, summary, description, acceptance criteria). Press Enter twice when done."*
+
+- After story resolved, confirm `user-story.md` exists at repo root
 - After each step, confirm the artifact was generated
 - At gates (3, 6, 7), wait for explicit user approval before proceeding
 - Display progress: `[2/8] Architecture Complete`

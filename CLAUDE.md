@@ -92,12 +92,36 @@ Start with `/run-pipeline EPMCDMETST-55568` in Copilot Chat, or walk each step m
 
 ## Quick Start
 
-**To run the full pipeline:**
+**To run the full pipeline with live Jira fetch:**
 
 ```bash
 git config core.hooksPath .githooks  # One-time setup
 
+# 1. Set Jira token (one-time)
+export JIRA_API_TOKEN="your-personal-access-token"
+
+# 2. Fetch live story and generate user-story.md + all artifacts
+docsync "https://jira.company.com/browse/EPMCDMETST-55568" \
+  --jira-token "$JIRA_API_TOKEN" \
+  -o . \
+  --non-interactive
+
+# 3. Run Copilot pipeline on the fresh user-story.md
 # Then, in Copilot Chat:
+/run-pipeline EPMCDMETST-55568
+```
+
+**Or use the one-command wrapper:**
+
+```bash
+# One-time setup
+chmod +x .github/scripts/fetch-and-run.sh
+
+# Fetch and prepare
+export JIRA_API_TOKEN="your-token"
+.github/scripts/fetch-and-run.sh EPMCDMETST-55568 "https://jira.company.com/browse/EPMCDMETST-55568"
+
+# Then in Copilot Chat:
 /run-pipeline EPMCDMETST-55568
 ```
 

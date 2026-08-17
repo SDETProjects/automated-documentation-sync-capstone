@@ -1,0 +1,46 @@
+# Virtual environment (111 MB — biggest win)
+.venv/
+venv/
+env/
+ENV/
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Generated / output directories
+output_mcp/
+demo_output*/
+.github/
+docs/copilot-operating-model.md
+docs/DEMO.md
+
+# IDE / OS
+.vscode/
+.idea/
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+
+# Secrets / config
+.env
+.env.*
+*.token
+docsync.config.json
+
+# Archive
+.archive/

@@ -6,6 +6,13 @@ tools: ["editFiles", "runCommands"]
 
 # Prompt: Generate requirements.md
 
+**Story Source (resolved by orchestrator before this step):**
+1. **Auto-fetch from Jira** — If `JIRA_API_TOKEN` + `JIRA_BASE_URL` configured, runs `docsync` to fetch live story → `user-story.md`
+2. **Local file** — Falls back to existing `user-story.md` at repo root
+3. **User paste** — If neither above, orchestrator prompts user to paste story in chat
+
+**This step receives:** Story text (from `user-story.md` or chat paste)
+
 Given a Jira-style story (samples/jira_story.json or Markdown), produce requirements.md with:
 
 1. Story summary and a link back to the Jira key.

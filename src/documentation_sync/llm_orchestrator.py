@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 from .models import JiraStory
+from .tokens import TokenCounter, create_counter_from_settings
 
 
 @dataclass
@@ -64,7 +65,9 @@ def _heuristic_questions(story: JiraStory) -> List[str]:
 
 
 def generate_clarifying_questions(
-    story: JiraStory, llm_call: Optional[LLMCallable] = None
+    story: JiraStory,
+    llm_call: Optional[LLMCallable] = None,
+    token_counter: Optional[TokenCounter] = None,
 ) -> List[str]:
     """Generate 2-3 clarifying questions about edge cases/ambiguities in a story.
 
@@ -72,9 +75,19 @@ def generate_clarifying_questions(
     Copilot chat call), it is used to draft the questions from a prompt
     built from the story. Otherwise falls back to `_heuristic_questions` so
     the flow remains fully offline-testable.
+
+    If `token_counter` is provided, the story description will be truncated
+    to fit within the token budget before building the prompt.
     """
     if llm_call is None:
         return _heuristic_questions(story)
+
+    # Initialize token counter if not provided
+    if token_counter is None:
+        token_counter = create_counter_from_settings()
+
+    # M2: budget the description against the context window before sending.
+    truncated_desc = token_counter.truncate_to_budget(story.description)
 
     prompt = (
         "You are reviewing a Jira user story before it is turned into "
@@ -83,10 +96,20 @@ def generate_clarifying_questions(
         "per line, no numbering.\n\n"
         f"Key: {story.key}\n"
         f"Summary: {story.summary}\n"
-        f"Description: {story.description}\n"
+        f"Description: {truncated_desc}\n"
         f"Acceptance Criteria: {story.acceptance_criteria}\n"
         f"Labels: {story.labels}\n"
     )
+
+    # Emit a structured warning if we're close to blowing the window.
+    count = token_counter.count(prompt)
+    if count.warning:
+        import sys
+        print(
+            f"WARNING: Prompt uses {count.count} tokens (>{token_counter.warning_limit} limit); "
+            "truncation may have occurred.",
+            file=sys.stderr,
+        )
 
     try:
         raw = llm_call(prompt)

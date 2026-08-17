@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Forecast Chart — EPMCDMETST-59936</title>
+
+  <!-- uPlot CDN (~40 KB gzipped) — bundle-size decision per Design Review -->
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+
+  <style>
+    body         { font-family: system-ui, sans-serif; margin: 1.5rem; color: #111; }
+    h1           { font-size: 1.25rem; margin-bottom: 1rem; }
+    .controls    { display: flex; align-items: flex-start; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .toggle-btn  { padding: 0.4rem 1rem; border: 1px solid #2563eb; border-radius: 4px;
+                   background: #fff; color: #2563eb; cursor: pointer; font-size: 0.9rem; }
+    .toggle-btn.active { background: #2563eb; color: #fff; }
+    #period-input { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    #refresh-btn  { padding: 0.4rem 1rem; border: 1px solid #6b7280; border-radius: 4px;
+                    background: #f9fafb; cursor: pointer; font-size: 0.9rem; }
+    #chart        { width: 100%; margin-bottom: 0.75rem; }
+    .risk-flag-marker { display: flex; align-items: center; gap: 0.5rem;
+                        background: #fef2f2; border: 1px solid #fca5a5;
+                        border-radius: 4px; padding: 0.5rem 0.75rem; color: #b91c1c;
+                        font-weight: 600; }
+    .risk-flag-icon   { font-size: 1.1rem; }
+    .budget-absence-notice { color: #6b7280; font-size: 0.85rem; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Spend Forecast — Monthly Overview</h1>
+
+  <div class="controls">
+    <!-- Period selector -->
+    <div>
+      <label for="period-input">Period:</label>
+      <input id="period-input" type="month" value="2026-08" aria-label="Select period" />
+    </div>
+
+    <!-- View toggle (FR-3) -->
+    <div id="view-toggle"></div>
+
+    <!-- Refresh button (cache invalidation) -->
+    <button id="refresh-btn" type="button" aria-label="Refresh chart data">Refresh</button>
+  </div>
+
+  <!-- Chart container (FR-1) -->
+  <div id="chart"></div>
+
+  <!-- Risk flag (FR-2) and budget-absence notice (FR-4) -->
+  <div id="risk-flag"></div>
+  <div id="budget-notice"></div>
+
+  <!-- Component scripts (loaded in dependency order) -->
+  <script src="period_cache.js"></script>
+  <script src="risk_flag_marker.js"></script>
+  <script src="budget_absence_notice.js"></script>
+  <script src="view_toggle.js"></script>
+  <script src="ForecastChart.js"></script>
+
+  <script>
+    // Wire up components.
+    const API_BASE = "http://127.0.0.1:5050";  // change for production
+    const API_KEY  = null;                       // set to match SPEND_API_KEY env var
+
+    const chart = new ForecastChart({
+      chartContainerId:   "chart",
+      riskFlagContainerId: "risk-flag",
+      noticeContainerId:  "budget-notice",
+      apiBaseUrl: API_BASE,
+      apiKey:     API_KEY,
+    });
+
+    // Fetch category list for the toggle.
+    fetch(`${API_BASE}/api/spend/budgets`, {
+      headers: API_KEY ? { "X-API-Key": API_KEY } : {},
+    })
+    .then(r => r.json())
+    .then(data => {
+      const toggle = new ViewToggleController("view-toggle", (mode, categoryId) => {
+        const period = document.getElementById("period-input").value;
+        chart.load(period, mode === "category" ? categoryId : null);
+      });
+      toggle.populateCategories(data.categories || []);
+    })
+    .catch(err => console.error("Could not load budgets:", err));
+
+    // Period input change: reload chart (cache miss for new period).
+    document.getElementById("period-input").addEventListener("change", function () {
+      chart.load(this.value, null);
+    });
+
+    // Refresh button: invalidate cache and reload.
+    document.getElementById("refresh-btn").addEventListener("click", function () {
+      const period = document.getElementById("period-input").value;
+      chart.refresh(period, null);
+    });
+  </script>
+</body>
+</html>

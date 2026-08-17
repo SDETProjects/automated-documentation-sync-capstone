@@ -1,0 +1,8 @@
+{
+  "overall": 35000.00,
+  "categories": [
+    { "id": "engineering", "label": "Engineering", "budget": 15000.00 },
+    { "id": "marketing",   "label": "Marketing",   "budget": 8000.00  },
+    { "id": "operations",  "label": "Operations",  "budget": 12000.00 }
+  ]
+}

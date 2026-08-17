@@ -1,42 +1,25 @@
-# Code Review: EPMCDMETST-55568
+# Code Review: EPMCDMETST-59936
 
 ## Scope
-Reviewed source modules:
-- `src/documentation_sync/parser.py`
-- `src/documentation_sync/validator.py`
-- `src/documentation_sync/generator.py`
-- `src/documentation_sync/cli.py`
-- `src/documentation_sync/phased_generator.py`
-- `src/documentation_sync/doc_validator.py`
+Review scope: source code, test suite, and implementation against requirements.
+Requirements addressed: US-1, FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, NFR-1
 
-Reviewed tests:
-- parser, validator, generator, phased flow, integration, providers, Jira connector, verifier tests under `tests/`
-
-Traceability scope: US-1, FR-1, FR-2, FR-3, FR-4, NFR-1
+## Functional Requirements
+- FR-1: Chart shows actual spend to date and projected month-end line for selected period.
+- FR-2: Risk flags appear when projection exceeds overall or category budget (when budgets exist).
+- FR-3: User can switch between overall and category views.
+- FR-4: When budgets are absent, risk flags are hidden and UI indicates budgets are required for risk.
+- FR-5: UI renders within 2 seconds on typical client devices.
+- FR-6: Chart data requests are cached per period to reduce repeated calls.
 
 ## Findings
-Separation of concerns:
-- Parser, validator, generator, and CLI responsibilities are clearly split, improving maintainability and test focus. (FR-1, FR-3, FR-4)
-- Verification logic is isolated in `doc_validator.py`, which supports independent quality checks. (FR-2, NFR-1)
+Correctness: Verify each component behaves as specified in requirements.md.
 
-Error handling:
-- Story loading and validation follow explicit error paths, preventing partial document generation on invalid inputs. (FR-4)
-- CLI orchestration maps failures into actionable outcomes, reducing ambiguous runtime behavior. (FR-4)
+Code Quality: Check separation of concerns, error handling, and traceability.
 
-Traceability stability across re-runs:
-- Requirements and downstream docs preserve ID usage (`US-1`, `FR-1..FR-4`, `NFR-1`) when source criteria remain stable. (FR-2, NFR-1)
-- Story-parity checks in verifier provide guardrails against FR drift. (FR-2)
-
-Risks / observations:
-- Markdown parser conventions remain format-sensitive; stories using numbered acceptance lists may require normalization to avoid under-capture. (FR-1, FR-4)
-- Story metadata fields are not fully propagated into all downstream artifacts, which may limit reviewer context. (FR-3)
-
-## Non-Blocking Suggestions
-1. Extend Markdown parsing to accept both `-` bullets and numbered acceptance criteria entries.
-2. Add a generated requirement-to-test mapping snippet for faster verification report completion.
-3. Consider a stricter lint rule for artifact placeholders (`[ ]`, `TBD`) before gate approval.
+Testing: Verify tests cover happy path and edge cases (missing fields, not found).
 
 ## Outcome
-Approved with comments.
-
-No blocking issues found for continuing the pipeline.
+[ ] Approved
+[ ] Approved with comments
+[ ] Changes requested (describe)

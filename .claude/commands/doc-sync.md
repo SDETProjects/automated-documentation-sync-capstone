@@ -13,6 +13,14 @@ Scan the repository for all Claude Code and Copilot Chat artifacts and generate:
 - **`docs/copilot-synced-output.md`:** Index of all Copilot Chat artifacts (optional)
 - Both files include artifact status (complete, in-progress, missing)
 
+**IMPORTANT:** After completing this skill, create the marker file so the
+`doc-sync-check` Stop hook (`.claude/hooks/trigger-doc-sync.py`) knows docs
+were just synced this session:
+
+```bash
+touch .claude/.docsync-ran
+```
+
 ## Context
 
 - **Input:** All artifacts in the repo (requirements, architecture, code, tests, etc.)

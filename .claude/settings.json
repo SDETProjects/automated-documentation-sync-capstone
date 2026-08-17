@@ -23,25 +23,33 @@
   "hooks": {
     "PreToolUse": [
       {
-        "toolName": "Bash",
-        "script": "hooks/block-secrets.py",
-        "description": "Prevent secret writes via bash commands"
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/block-secrets.py"
+          }
+        ]
       },
       {
-        "toolName": "Write",
-        "script": "hooks/guard-generated-files.py",
-        "description": "Protect .claude/ config from accidental overwrites"
-      },
-      {
-        "toolName": "Edit",
-        "script": "hooks/guard-generated-files.py",
-        "description": "Protect .claude/ config from accidental overwrites"
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/guard-generated-files.py"
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "script": "hooks/trigger-doc-sync.py",
-        "description": "Block exit if src/ changed but docs not synced"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/trigger-doc-sync.py"
+          }
+        ]
       }
     ]
   },
@@ -52,6 +60,11 @@
       "Bash:npm",
       "Bash:python",
       "Bash:pytest",
+      "Bash:ls",
+      "Bash:cat",
+      "Bash:head",
+      "Bash:tail",
+      "Bash:wc",
       "Read:**",
       "Write:claude-*.md",
       "Write:.claude/**",
