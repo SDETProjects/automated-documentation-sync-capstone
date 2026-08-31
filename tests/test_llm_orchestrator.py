@@ -6,6 +6,7 @@ from documentation_sync.llm_orchestrator import (
     wait_for_user_input,
 )
 from documentation_sync.models import JiraStory
+from documentation_sync.tokens import TokenCounter
 
 
 def _story(**overrides):
@@ -47,6 +48,26 @@ def test_generate_clarifying_questions_falls_back_on_llm_failure():
 
     questions = generate_clarifying_questions(_story(), llm_call=failing_llm)
     assert questions  # falls back to heuristic questions, never empty
+
+
+def test_generate_clarifying_questions_truncates_long_description():
+    long_desc = "x" * 4000  # ~1000 tokens, will exceed small window
+    counter = TokenCounter(context_window=200, warning_threshold=0.8)
+    story = _story(description=long_desc)
+
+    captured = {}
+
+    def fake_llm(prompt: str) -> str:
+        captured["prompt"] = prompt
+        return "Q1?\nQ2?\nQ3?\n"
+
+    questions = generate_clarifying_questions(
+        story, llm_call=fake_llm, token_counter=counter
+    )
+    assert questions == ["Q1?", "Q2?", "Q3?"]
+    # Truncated description should appear in the prompt, not the full 4000 chars
+    assert "Description: xxxx" in captured["prompt"]
+    assert long_desc not in captured["prompt"]
 
 
 def test_wait_for_user_input_collects_answers():

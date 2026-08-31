@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/UjjalSaha/automated-documentation-sync/blob/main/src/documentation_sync/docsync.config.schema.json",
+  "title": "docsync configuration",
+  "description": "Validated configuration for the Automated Documentation Sync engine. Load order: config file -> DOCSYNC_* env vars -> defaults.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "jira_base_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Base URL of the Jira instance, e.g. https://jira.company.com"
+    },
+    "jira": {
+      "type": "object",
+      "properties": {
+        "base_url": { "type": "string", "format": "uri" }
+      },
+      "description": "Legacy nested form; base_url is normalised into jira_base_url."
+    },
+    "llm": {
+      "type": "object",
+      "properties": {
+        "model": { "type": "string" },
+        "max_tokens": { "type": "integer", "minimum": 1 },
+        "max_retries": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "retry_base_delay_s": { "type": "number", "minimum": 0 },
+        "retry_max_delay_s": { "type": "number", "minimum": 0 },
+        "context_window": { "type": "integer", "minimum": 1024 },
+        "token_warning_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "description": "LLM provider and token-budget settings."
+    },
+    "logging_level": {
+      "type": "string",
+      "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    },
+    "mcp_api_key": {
+      "type": "string",
+      "description": "Shared API key required by the MCP server for authorization."
+    },
+    "mcp_rate_limit_per_minute": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Per-client token-bucket refill rate for MCP tool calls."
+    },
+    "max_context_tokens": {
+      "type": "integer",
+      "minimum": 1024,
+      "description": "Token budget used to truncate story content before LLM calls."
+    }
+  }
+}

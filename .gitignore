@@ -51,3 +51,7 @@ CLAUDE-ARCHITECTURE-SUMMARY.md
 
 # Superseded demo runs, moved aside rather than deleted
 .archive/
+
+# Personal evaluation material and Microsoft Office temporary lock files
+Lead_SDET_Evaluation_UjjalSaha.docx
+~$*.docx

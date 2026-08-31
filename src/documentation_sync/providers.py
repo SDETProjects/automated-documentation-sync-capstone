@@ -12,9 +12,14 @@ import json
 import os
 import subprocess
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
+from .log import get_logger
 from .models import JiraStory
+from .resilience import retry
+from .tokens import TokenCounter
+
+log = get_logger("docsync.providers")
 
 
 class LLMAdapter(ABC):
@@ -41,6 +46,18 @@ class ClaudeLLMAdapter(LLMAdapter):
 
     MODEL = "claude-haiku-4-5-20251001"
 
+    def __init__(
+        self,
+        token_counter: Optional[TokenCounter] = None,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        max_delay: float = 60.0,
+    ) -> None:
+        self._tokens = token_counter or TokenCounter()
+        self._max_retries = max_retries
+        self._base_delay = base_delay
+        self._max_delay = max_delay
+
     def is_available(self) -> bool:
         # Treat API key presence as availability for manager selection.
         # The SDK import itself is resolved lazily at call time.
@@ -63,38 +80,106 @@ class ClaudeLLMAdapter(LLMAdapter):
         return "Claude (CLI via claude -p)"
 
     def _build_prompt(self, story: JiraStory) -> str:
+        # M2: budget the description against the context window before sending.
+        truncated_desc = self._tokens.truncate_to_budget(story.description)
         criteria = "\n".join(f"- {ac}" for ac in story.acceptance_criteria)
-        return (
+        prompt = (
             "Analyze this user story and generate exactly 3 clarifying "
             "questions about edge cases, missing details, or ambiguities.\n\n"
-            f"Story:\nTitle: {story.summary}\nDescription: {story.description}\n"
+            f"Story:\nTitle: {story.summary}\nDescription: {truncated_desc}\n"
             f"Acceptance Criteria:\n{criteria}\n\n"
             'Return ONLY a JSON array of exactly 3 strings, nothing else.\n'
             'Example: ["Q1?", "Q2?", "Q3?"]'
         )
-
-    def generate_clarifying_questions(self, story: JiraStory) -> List[str]:
-        prompt = self._build_prompt(story)
-
-        if os.getenv("ANTHROPIC_API_KEY"):
-            from anthropic import Anthropic  # optional dep; imported lazily
-
-            client = Anthropic()
-            message = client.messages.create(
-                model=self.MODEL,
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt}],
+        # Emit a structured warning if we're close to blowing the window.
+        count = self._tokens.count(prompt)
+        log.debug(
+            "prompt_built",
+            llm_tokens_in=count.count,
+            token_method=count.method,
+            over_warning_threshold=count.warning,
+        )
+        if count.warning:
+            log.warning(
+                "token_budget_high",
+                llm_tokens_in=count.count,
+                warning_limit=self._tokens.warning_limit,
+                event="prompt uses >80% of context window",
             )
-            text = message.content[0].text.strip()
-            return json.loads(text)[:3]
+        return prompt
 
+    def _sdk_call(self, prompt: str) -> str:
+        from anthropic import Anthropic  # optional dep; imported lazily
+
+        client = Anthropic()
+        message = client.messages.create(
+            model=self.MODEL,
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text.strip()
+
+    def _cli_call(self, prompt: str) -> str:
         result = subprocess.run(
             ["claude", "-p", prompt],
             capture_output=True,
             text=True,
             check=True,
         )
-        return json.loads(result.stdout.strip())[:3]
+        return result.stdout.strip()
+
+    def generate_clarifying_questions(self, story: JiraStory) -> List[str]:
+        prompt = self._build_prompt(story)
+
+        # M3: wrap the call in exponential backoff on transient failures.
+        try:
+            if os.getenv("ANTHROPIC_API_KEY"):
+                text = retry(
+                    self._sdk_call,
+                    prompt,
+                    max_retries=self._max_retries,
+                    base_delay=self._base_delay,
+                    max_delay=self._max_delay,
+                )
+                fallback = False
+            else:
+                text = retry(
+                    self._cli_call,
+                    prompt,
+                    max_retries=self._max_retries,
+                    base_delay=self._base_delay,
+                    max_delay=self._max_delay,
+                )
+                fallback = False
+        except Exception as exc:  # noqa: BLE001 - LLM failure falls back
+            log.warning(
+                "llm_call_failed",
+                event="falling back to heuristic questions",
+                exception=str(exc),
+                fallback_triggered=True,
+            )
+            from .llm_orchestrator import _heuristic_questions
+
+            return _heuristic_questions(story)[:3]
+
+        out_count = self._tokens.count(text)
+        log.info(
+            "clarifying_questions_generated",
+            llm_tokens_out=out_count.count,
+            fallback_triggered=fallback,
+        )
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            log.warning(
+                "llm_response_not_json",
+                event="returning heuristic questions",
+                fallback_triggered=True,
+            )
+            from .llm_orchestrator import _heuristic_questions
+
+            return _heuristic_questions(story)[:3]
+        return parsed[:3]
 
     def _sdk_available(self) -> bool:
         """True only when both API key and the anthropic package are present."""

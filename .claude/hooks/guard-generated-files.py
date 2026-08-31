@@ -4,20 +4,28 @@ Hook: guard-generated-files
 Event: PreToolUse (Write, Edit)
 Purpose: Protect .claude/ configuration files from accidental overwrites
 
-This hook blocks writes to critical .claude/ files:
-- .claude/CLAUDE.md (pipeline rules)
-- .claude/settings.json (MCP server config)
-- .claude/commands/* (user shouldn't edit these)
-- .claude/agents/* (user shouldn't edit these)
+Claude Code passes tool input as JSON on stdin. This hook reads that payload,
+extracts the file path, and blocks writes to protected paths.
 
-Allows writes to:
-- .claude/hooks/* (user can add custom hooks)
-- .claude/skills/* (user can add custom skills)
-- .claude/projects/*/memory/* (user memory system)
+Decision output (stdout JSON):
+  {"decision": "block", "reason": "..."}  — deny the tool call
+  {"decision": "approve"}                 — allow the tool call
+
+Protected (blocked):
+  .claude/CLAUDE.md
+  .claude/settings.json
+  .claude/commands/*
+  .claude/agents/*
+
+Allowed even within .claude/:
+  .claude/hooks/*
+  .claude/skills/*
+  .claude/projects/*  (memory system)
 """
 
+import json
 import sys
-import os
+from pathlib import Path
 
 PROTECTED_PATHS = [
     ".claude/CLAUDE.md",
@@ -32,13 +40,31 @@ ALLOWED_PATHS = [
     ".claude/projects/",
 ]
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _repository_relative_path(filepath: str) -> str:
+    """Normalize a supplied path to a repository-relative POSIX path."""
+    supplied_path = Path(filepath)
+    resolved_path = (
+        supplied_path.resolve()
+        if supplied_path.is_absolute()
+        else (REPOSITORY_ROOT / supplied_path).resolve()
+    )
+    try:
+        return resolved_path.relative_to(REPOSITORY_ROOT).as_posix()
+    except ValueError:
+        return ""
+
+
 def is_protected(filepath: str) -> bool:
-    """Check if filepath is protected. Return True if it should be blocked."""
-    filepath = filepath.replace("\\", "/")  # Normalize to forward slashes
+    """Return True if the filepath should be blocked."""
+    filepath = _repository_relative_path(filepath)
+    if not filepath:
+        return False
 
     for protected in PROTECTED_PATHS:
         if filepath == protected or filepath.startswith(protected.rstrip("/") + "/"):
-            # Check if it's in an allowed override path
             for allowed in ALLOWED_PATHS:
                 if filepath.startswith(allowed):
                     return False
@@ -46,23 +72,32 @@ def is_protected(filepath: str) -> bool:
 
     return False
 
-if __name__ == "__main__":
-    # Get the filepath from tool input
-    # For simplicity, check sys.argv[1] if provided
 
-    filepath = sys.argv[1] if len(sys.argv) > 1 else ""
+def main() -> None:
+    try:
+        payload = json.loads(sys.stdin.read())
+        tool_input = payload.get("tool_input", {})
+        # Write uses "file_path"; Edit uses "file_path" too
+        filepath = tool_input.get("file_path", "")
+    except (json.JSONDecodeError, AttributeError):
+        print(json.dumps({"decision": "approve"}))
+        return
 
     if not filepath:
-        # No filepath provided, allow it
-        sys.exit(0)
+        print(json.dumps({"decision": "approve"}))
+        return
 
     if is_protected(filepath):
-        # Protected file, block it
-        print("ERROR: This file is protected from accidental edits.")
-        print(f"File: {filepath}")
-        print("\nIf you need to modify .claude/ configuration, use:")
-        print("  claude /config")
-        sys.exit(1)
+        print(json.dumps({
+            "decision": "block",
+            "reason": (
+                f"'{filepath}' is a protected configuration file. "
+                "To modify .claude/ configuration use: claude /config"
+            ),
+        }))
     else:
-        # Safe to write, allow it
-        sys.exit(0)
+        print(json.dumps({"decision": "approve"}))
+
+
+if __name__ == "__main__":
+    main()

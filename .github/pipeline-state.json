@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "pipeline": "github-copilot",
+  "pipeline_id": "DEFAULT",
+  "story_key": null,
+  "story_file": "user-story.md",
+  "current_step": 0,
+  "status": "NOT_STARTED",
+  "started_at": null,
+  "updated_at": null,
+  "steps": {
+    "step_1_requirements": {
+      "agent": "requirements-analyst",
+      "status": "PENDING",
+      "artifact": "requirements.md",
+      "gate_status": "NOT_REQUIRED",
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    },
+    "step_2_architecture": {
+      "agent": "software-architect",
+      "status": "PENDING",
+      "artifact": "architecture.md",
+      "input_artifact": "requirements.md",
+      "gate_status": "NOT_REQUIRED",
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    },
+    "step_3_design_review": {
+      "agent": "design-reviewer",
+      "status": "PENDING",
+      "artifact": "design-review.md",
+      "gate_status": "AWAITING_HUMAN_APPROVAL",
+      "gate_decision": null,
+      "feedback": null,
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    },
+    "step_4_impl_plan": {
+      "agent": "implementation-planner",
+      "status": "PENDING",
+      "artifact": "impl-plan.md",
+      "gate_status": "NOT_REQUIRED",
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    },
+    "step_5_implement": {
+      "agent": "code-developer",
+      "status": "PENDING",
+      "artifact": "src/",
+      "gate_status": "NOT_REQUIRED",
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    },
+    "step_6_code_review": {
+      "agent": "code-reviewer",
+      "status": "PENDING",
+      "artifact": "code-review.md",
+      "gate_status": "NOT_REQUIRED",
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    },
+    "step_7_verify": {
+      "agent": "qa-verifier",
+      "status": "PENDING",
+      "artifact": "verification-report.md",
+      "gate_status": "AWAITING_HUMAN_APPROVAL",
+      "gate_decision": null,
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    },
+    "step_8_create_pr": {
+      "agent": "release-engineer",
+      "status": "PENDING",
+      "artifact": "PR.md",
+      "gate_status": "NOT_REQUIRED",
+      "started_at": null,
+      "completed_at": null,
+      "error": null
+    }
+  },
+  "decisions": [],
+  "blockers": [],
+  "history": []
+}

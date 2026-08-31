@@ -7,6 +7,7 @@ from documentation_sync.generator import (
     generate_impl_plan_md,
     generate_pr_md,
     generate_requirements_md,
+    generate_user_story_md,
     generate_verification_report_md,
     write_all_artifacts,
 )
@@ -71,6 +72,7 @@ def test_write_all_artifacts_creates_files(tmp_path):
     written = write_all_artifacts(req_set, tmp_path)
 
     expected_names = {
+        "user-story.md",
         "requirements.md",
         "architecture.md",
         "design-review.md",
@@ -84,6 +86,55 @@ def test_write_all_artifacts_creates_files(tmp_path):
     for path in written:
         assert path.exists()
         assert path.read_text(encoding="utf-8").strip() != ""
+
+
+def test_generate_user_story_md_round_trips_through_parser(tmp_path):
+    """user-story.md must parse back into the same JiraStory it was generated from."""
+    from documentation_sync.parser import load_story
+
+    story = JiraStory(
+        key="ABC-1",
+        summary="Do the thing",
+        description="As a user I want the thing.",
+        acceptance_criteria=["Given X, when Y, then Z", "Given A, when B, then C"],
+        labels=["capstone"],
+        priority="High",
+        story_points=3,
+        reporter="alice@example.com",
+        assignee="bob@example.com",
+    )
+    req_set = build_requirement_set(story)
+    content = generate_user_story_md(req_set)
+
+    story_path = tmp_path / "user-story.md"
+    story_path.write_text(content, encoding="utf-8")
+    reparsed = load_story(story_path)
+
+    assert reparsed.key == story.key
+    assert reparsed.summary == story.summary
+    assert reparsed.description == story.description
+    assert reparsed.acceptance_criteria == story.acceptance_criteria
+
+
+def test_generate_user_story_md_renders_metadata(tmp_path):
+    story = JiraStory(
+        key="ABC-1",
+        summary="Do the thing",
+        description="As a user I want the thing.",
+        acceptance_criteria=["Given X, when Y, then Z"],
+        labels=["capstone"],
+        priority="High",
+        story_points=3,
+    )
+    content = generate_user_story_md(build_requirement_set(story))
+
+    assert "# ABC-1: Do the thing" in content
+    assert "## Acceptance Criteria" in content
+    assert "- Given X, when Y, then Z" in content
+    assert "## Metadata" in content
+    assert "| Labels | capstone |" in content
+    assert "| Priority | High |" in content
+    assert "| Story Points | 3 |" in content
 
 
 def test_generate_verification_report_md_has_required_sections():

@@ -1,34 +1,35 @@
-# Requirements: EPMCDMETST-55568
+# Requirements: EPMCDMETST-59936
+
+_Generated: 2026-08-14_
 
 ## Story Summary
-Story key: EPMCDMETST-55568
-Story title: Enable automated documentation sync for user stories
+Display forecast chart overlay with expected month-end totals and risk flags
 
 ## Description
-As a QA engineer, I want user stories to be automatically converted into structured requirements and SDLC documentation artifacts, so that documentation stays in sync with delivered features and reviewers have consistent, traceable evidence.
+As a user, I want a forecast overlay on charts so that I can visually compare actual spend vs projected month-end totals and see risk flags.
+
+Acceptance Criteria:
+1. Chart shows actual spend to date and projected month-end line for selected period.
+2. Risk flags appear when projection exceeds overall or category budget (when budgets exist).
+3. User can switch between overall and category views.
+4. When budgets are absent, risk flags are hidden and UI indicates budgets are required for risk.
+
+Non-Functional Requirements:
+- UI renders within 2 seconds on typical client devices.
+- Chart data requests are cached per period to reduce repeated calls.
+
 
 ## Traceability Matrix
 | ID | Category | Requirement | Source |
 |----|----------|-------------|--------|
-| US-1 | User Story | As a QA engineer, I want user stories to be automatically converted into structured requirements and SDLC documentation artifacts, so that documentation stays in sync with delivered features and reviewers have consistent, traceable evidence. | EPMCDMETST-55568 |
-| FR-1 | Functional | Given a Jira-style story file, the system parses title, description, and acceptance criteria into a structured model. | Acceptance Criteria #1 |
-| FR-2 | Functional | Given a parsed story, the system generates requirements.md with unique traceability IDs (US, FR, NFR). | Acceptance Criteria #2 |
-| FR-3 | Functional | Given approved requirements, the system generates architecture.md, design-review.md, impl-plan.md, and PR.md. | Acceptance Criteria #3 |
-| FR-4 | Functional | Given an invalid or incomplete story, the system reports clear validation errors instead of generating partial docs. | Acceptance Criteria #4 |
-| NFR-1 | Non-Functional | Generated artifacts must preserve requirement ID traceability (US-n, FR-n, NFR-n) to support consistent reviewer evidence and auditability. | Story description + labels (documentation, automation, sdlc) |
-
-## Open Questions
-1. Should the parser accept numbered acceptance criteria in Markdown input in addition to hyphen bullets?
-2. Should validation enforce a minimum quality bar for acceptance criteria wording beyond non-empty values?
-3. Should downstream artifacts include explicit field-level provenance (for example, reporter/assignee) when present?
+| US-1 | US | Display forecast chart overlay with expected month-end totals and risk flags (EPMCDMETST-59936) | EPMCDMETST-59936 |
+| FR-1 | FR | Chart shows actual spend to date and projected month-end line for selected period. | EPMCDMETST-59936 |
+| FR-2 | FR | Risk flags appear when projection exceeds overall or category budget (when budgets exist). | EPMCDMETST-59936 |
+| FR-3 | FR | User can switch between overall and category views. | EPMCDMETST-59936 |
+| FR-4 | FR | When budgets are absent, risk flags are hidden and UI indicates budgets are required for risk. | EPMCDMETST-59936 |
+| FR-5 | FR | UI renders within 2 seconds on typical client devices. | EPMCDMETST-59936 |
+| FR-6 | FR | Chart data requests are cached per period to reduce repeated calls. | EPMCDMETST-59936 |
+| NFR-1 | NFR | Every generated artifact must retain traceability back to the originating story EPMCDMETST-59936 via requirement IDs. | EPMCDMETST-59936 |
 
 ## Clarifications
-1. Ambiguities were handled in non-interactive mode for this run; no requirement IDs were altered.
-2. Functional requirement ordering strictly follows acceptance criteria order.
-3. NFR-1 captures traceability and documentation consistency expectations from the story context.
-
-## Notes
-Step 1 completed from source story EPMCDMETST-55568.
-
-## Outcome
-Requirements drafted and ready for architecture generation.
+None identified.

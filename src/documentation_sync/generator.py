@@ -1,11 +1,44 @@
 """Generators that turn requirements into SDLC documentation artifacts."""
 from __future__ import annotations
 
+import re
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from .models import JiraStory, Requirement, RequirementSet
+
+TRACE_ID_PATTERN = re.compile(r"\b(?:US|FR|NFR)-\d+\b")
+
+
+class TraceabilityError(Exception):
+    """Raised when a generator emits a traceability ID absent from req_set.
+
+    This enforces traceability at generation time (fail fast) rather than
+    deferring the check to docsync-verify (M4).
+    """
+
+
+def _known_ids(req_set: RequirementSet) -> Set[str]:
+    """The set of requirement IDs the generator is allowed to cite."""
+    return {r.req_id for r in req_set.requirements}
+
+
+def extract_trace_ids(text: str) -> Set[str]:
+    """Return the set of US/FR/NFR-<n> IDs cited in *text*."""
+    return set(TRACE_ID_PATTERN.findall(text))
+
+
+def assert_traceable(content: str, req_set: RequirementSet) -> None:
+    """Fail fast if *content* cites an ID not defined in *req_set*."""
+    known = _known_ids(req_set)
+    cited = extract_trace_ids(content)
+    unknown = sorted(cited - known)
+    if unknown:
+        raise TraceabilityError(
+            f"Artifact cites requirement IDs absent from requirements.md: "
+            f"{', '.join(unknown)}. Known IDs: {', '.join(sorted(known)) or '(none)'}"
+        )
 
 
 def build_requirement_set(story: JiraStory) -> RequirementSet:
@@ -222,6 +255,59 @@ def generate_changelog_md(req_set: RequirementSet) -> str:
     )
 
 
+def generate_user_story_md(req_set: RequirementSet) -> str:
+    """Render the source story as a Markdown input file (user-story.md).
+
+    This captures the live Jira fetch (key, summary, description, acceptance
+    criteria) into the canonical input file the Copilot pipeline reads in
+    `/run-pipeline`. It uses the exact Markdown convention `_read_markdown`
+    parses, so the round-trip through `docsync-verify --story user-story.md`
+    preserves story-to-requirement ID parity.
+
+    Metadata (labels, priority, story points, reporter, assignee) is appended
+    as a `## Metadata` section so a downstream fetch never loses Jira context.
+    """
+    story = req_set.story
+    today = date.today().isoformat()
+    lines = [
+        f"# {story.key}: {story.summary}",
+        "",
+        f"_Fetched: {today}_",
+        "",
+        "## Description",
+        story.description or "(no description provided)",
+        "",
+        "## Acceptance Criteria",
+    ]
+    if story.acceptance_criteria:
+        lines.extend(f"- {criterion}" for criterion in story.acceptance_criteria)
+    else:
+        lines.append("(none provided)")
+
+    metadata: Dict[str, str] = {}
+    if story.labels:
+        metadata["Labels"] = ", ".join(str(lbl) for lbl in story.labels)
+    if story.priority:
+        metadata["Priority"] = str(story.priority)
+    if story.story_points is not None:
+        metadata["Story Points"] = str(story.story_points)
+    if story.reporter:
+        metadata["Reporter"] = str(story.reporter)
+    if story.assignee:
+        metadata["Assignee"] = str(story.assignee)
+
+    if metadata:
+        lines.append("")
+        lines.append("## Metadata")
+        # Use table format to avoid parser confusion with acceptance criteria bullets
+        lines.append("| Field | Value |")
+        lines.append("|-------|-------|")
+        for key, value in metadata.items():
+            lines.append(f"| {key} | {value} |")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def write_all_artifacts(
     req_set: RequirementSet,
     output_dir: str | Path = ".",
@@ -237,6 +323,7 @@ def write_all_artifacts(
     out.mkdir(parents=True, exist_ok=True)
 
     artifacts = {
+        "user-story.md": generate_user_story_md(req_set),
         "requirements.md": generate_requirements_md(req_set, clarifications),
         "architecture.md": generate_architecture_md(req_set),
         "design-review.md": generate_design_review_md(req_set),
@@ -246,6 +333,11 @@ def write_all_artifacts(
         "CHANGELOG.md": generate_changelog_md(req_set),
         "PR.md": generate_pr_md(req_set),
     }
+
+    # M4: fail fast — validate every artifact cites only known IDs *before*
+    # any file is written, so a traceability violation never lands on disk.
+    for filename, content in artifacts.items():
+        assert_traceable(content, req_set)
 
     written: List[Path] = []
     for filename, content in artifacts.items():

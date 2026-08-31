@@ -83,7 +83,7 @@ class TestClaudeLLMAdapterSDKPath:
         mock_client = MagicMock()
         mock_client.messages.create.return_value = mock_message
 
-        with patch.dict("sys.modules", {"anthropic": MagicMock(Anthropic=lambda: mock_client)}):
+        with patch.dict("sys.modules", {"anthropic": MagicMock(Anthropic=lambda api_key=None, **kwargs: mock_client)}):
             adapter = ClaudeLLMAdapter()
             result = adapter.generate_clarifying_questions(_sample_story())
 
@@ -101,7 +101,7 @@ class TestClaudeLLMAdapterSDKPath:
         mock_client = MagicMock()
         mock_client.messages.create.return_value = mock_message
 
-        with patch.dict("sys.modules", {"anthropic": MagicMock(Anthropic=lambda: mock_client)}):
+        with patch.dict("sys.modules", {"anthropic": MagicMock(Anthropic=lambda api_key=None, **kwargs: mock_client)}):
             adapter = ClaudeLLMAdapter()
             result = adapter.generate_clarifying_questions(_sample_story())
 
