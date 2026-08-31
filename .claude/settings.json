@@ -2,7 +2,10 @@
   "mcpServers": {
     "docsync-jira": {
       "command": "python",
-      "args": ["-m", "documentation_sync.jira_mcp_server"],
+      "args": [
+        "-m",
+        "documentation_sync.jira_mcp_server"
+      ],
       "env": {
         "PYTHONPATH": "src",
         "PYTHONIOENCODING": "utf-8"
@@ -10,69 +13,39 @@
     },
     "github": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
       }
     },
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ]
     }
   },
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/block-secrets.py"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "python .claude/hooks/block-secrets.py"}]
       },
       {
         "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/guard-generated-files.py"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "python .claude/hooks/guard-generated-files.py"}]
       }
     ],
     "Stop": [
       {
         "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/trigger-doc-sync.py"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "python .claude/hooks/trigger-doc-sync.py"}]
       }
-    ]
-  },
-  "permissions": {
-    "allowlist": [
-      "Bash:find",
-      "Bash:git",
-      "Bash:npm",
-      "Bash:python",
-      "Bash:pytest",
-      "Bash:ls",
-      "Bash:cat",
-      "Bash:head",
-      "Bash:tail",
-      "Bash:wc",
-      "Read:**",
-      "Write:claude-*.md",
-      "Write:.claude/**",
-      "Write:src/**",
-      "Write:tests/**",
-      "Edit:claude-*.md",
-      "Edit:src/**",
-      "Edit:tests/**"
     ]
   }
 }

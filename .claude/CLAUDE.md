@@ -120,12 +120,49 @@ export JIRA_API_TOKEN="your-token"
 
 ---
 
+## Custom Instructions vs Agent Prompts
+
+- **CLAUDE.md (Workspace System Context):** Establishes global repository guidelines, formatting preferences, hook behaviors, and safety boundaries applicable across all turns.
+- **.claude/agents/*.md (Role Prompts):** Defines specialized subagent personas, model selection, restricted tool access lists, and input/output contracts.
+
+---
+
+## Architecture & Handoff Model
+
+The pipeline implements the Ritchie Modular Agent Architecture:
+- **Orchestrator (`orchestrator.md`):** Drives workflow execution, state persistence (`.claude/pipeline-state.json`), and human approval gates.
+- **Worker Subagents (`.claude/agents/*.md`):** Execute step-specific tasks and communicate via markdown artifacts (`claude-*.md`).
+- **Rollback Logic:**
+  - *Gate 1 Rejection (Step 3):* Sends feedback to `software-architect` to revise `claude-architecture.md`.
+  - *Gate 2 Failure (Step 7):* Sends test diagnostics to `code-developer` to fix `src/` or `tests/`.
+
+### Agent Roster
+
+| Agent File | Role | Model | Gate |
+|---|---|---|---|
+| `orchestrator.md` | Pipeline driver, state & gates | opus | — |
+| `requirements-analyst.md` | Step 1 — elicit & write `claude-requirements.md` | sonnet | — |
+| `software-architect.md` | Step 2 — design `claude-architecture.md` | sonnet | — |
+| `design-reviewer.md` | Step 3 — review, write `claude-design-review.md` | sonnet | ✋ Gate 1 |
+| `implementation-planner.md` | Step 4 — task breakdown in `claude-impl-plan.md` | sonnet | — |
+| `code-developer.md` | Step 5 — implement `src/` + `tests/` | sonnet | — |
+| `code-reviewer.md` | Step 6 — review, write `claude-code-review.md` | sonnet | — |
+| `qa-verifier.md` | Step 7 — tests & coverage report | sonnet | ✋ Gate 2 |
+| `release-engineer.md` | Step 8 — `CHANGELOG.md` + `claude-pr-description.md` | sonnet | — |
+
+---
+
+## State Persistence
+
+Pipeline progress is tracked in `.claude/pipeline-state.json`. Each step records its `status` (`PENDING` / `IN_PROGRESS` / `COMPLETE` / `FAILED`), artifact path, and gate decision. This allows session resumption and deterministic rollback.
+
+---
+
 ## Settings & Configuration
 
 See `.claude/settings.json` for:
 - MCP server definitions
 - Hook configuration
-- Permission allowlist
 - Environment variables
 
 ---

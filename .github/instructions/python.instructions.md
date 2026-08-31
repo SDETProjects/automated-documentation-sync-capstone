@@ -1,6 +1,7 @@
+---
+applyTo: "src/documentation_sync/**,tests/**"
+---
 # Python Instructions
-
-Applies to: src/documentation_sync/**, tests/**
 
 - Target Python 3.10+, use type hints and dataclasses (see models.py) for story/requirement structures.
 - Keep modules single-purpose: parser.py (read/parse input), validator.py (business rules), generator.py (render Markdown artifacts), cli.py (orchestration and exit codes).

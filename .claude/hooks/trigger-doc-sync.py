@@ -12,11 +12,11 @@ This hook checks:
 Allows exit if:
 - src/ did not change since last commit
 - A doc-sync was run in this session (tracked via marker file)
-- The user explicitly passes --force to skip doc-sync
+- SKIP_DOC_SYNC=1 is set in the environment (replaces the --force argv flag,
+  which is unreachable when invoked as a Claude Code Stop hook)
 """
 from __future__ import annotations
 
-import argparse
 import os
 import subprocess
 import sys
@@ -72,20 +72,19 @@ def _doc_sync_ran_this_session() -> bool:
     return Path(DOC_SYNC_MARKER).exists()
 
 
-def check_doc_sync_needed(force: bool = False) -> bool:
+def check_doc_sync_needed() -> bool:
     """Return True if doc-sync should be required before exit.
 
-    Args:
-        force: If True, never block (override for explicit user skip).
-
     Logic:
-        - If force: return False (allow exit).
+        - If SKIP_DOC_SYNC=1 env var is set: return False (allow exit).
         - If no source changes: return False (nothing to sync).
         - If doc-sync ran this session: return False (just synced).
         - If docs already changed alongside source: return False (synced by hand).
         - Otherwise: return True (block and require /doc-sync).
+
+    To bypass from the terminal: export SKIP_DOC_SYNC=1
     """
-    if force:
+    if os.environ.get("SKIP_DOC_SYNC") == "1":
         return False
 
     diff_names = _git_diff_names()
@@ -105,15 +104,7 @@ def check_doc_sync_needed(force: bool = False) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Trigger doc-sync check hook")
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Skip doc-sync requirement (explicit user override)",
-    )
-    args = parser.parse_args()
-
-    if check_doc_sync_needed(force=args.force):
+    if check_doc_sync_needed():
         print("⚠️  src/ or tests/ changed but documentation is not in sync.")
         print("")
         print("To sync documentation, run one of:")
@@ -122,8 +113,7 @@ def main() -> int:
         print("  3. python -m documentation_sync.cli <story> -o . --phased")
         print("")
         print("Or skip this check:")
-        print("  - Re-run with: --force  (explicit override)")
-        print("  - Or confirm in chat that you want to exit without doc-sync.")
+        print("  export SKIP_DOC_SYNC=1  (set before starting the session)")
         sys.exit(1)
     else:
         sys.exit(0)

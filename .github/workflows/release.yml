@@ -41,15 +41,41 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for artifact in requirements.md architecture.md design-review.md \
-                          impl-plan.md code-review.md PR.md RELEASE-NOTES.md; do
-            if [ ! -f "$artifact" ]; then
-              echo "::error::missing required release artifact: $artifact"
-              missing=1
-            fi
-          done
+
+          copilot_artifacts=(
+            requirements.md architecture.md design-review.md impl-plan.md
+            code-review.md PR.md RELEASE-NOTES.md
+          )
+          claude_artifacts=(
+            claude-requirements.md claude-architecture.md claude-design-review.md
+            claude-impl-plan.md claude-code-review.md claude-pr-description.md
+            claude-verification-report.md
+          )
+
+          pipeline_complete() {
+            local pipeline_name="$1"
+            shift
+            local artifact
+            local complete=0
+            for artifact in "$@"; do
+              if [ ! -f "$artifact" ]; then
+                echo "::notice::$pipeline_name pipeline artifact not present: $artifact"
+                complete=1
+              fi
+            done
+            return "$complete"
+          }
+
+          if pipeline_complete "Copilot" "${copilot_artifacts[@]}"; then
+            echo "Copilot pipeline artifacts complete."
+          elif pipeline_complete "Claude Code" "${claude_artifacts[@]}"; then
+            echo "Claude Code pipeline artifacts complete."
+          else
+            echo "::error::A release requires one complete SDLC pipeline artifact set."
+            missing=1
+          fi
+
           [ "$missing" -eq 0 ] || exit 1
-          echo "All SDLC artifacts present."
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
